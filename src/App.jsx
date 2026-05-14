@@ -38,10 +38,6 @@ function formatTime(value) {
   return text
 }
 
-function boolText(value) {
-  return value ? "Sim" : "Não"
-}
-
 function activeDays(row) {
   const days = []
 
@@ -56,6 +52,64 @@ function activeDays(row) {
   return days.length ? days.join(" ") : "-"
 }
 
+function normalizeSearch(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+function flightMatchesGeneralSearch(flight, search) {
+  const term = normalizeSearch(search)
+
+  if (!term) {
+    return true
+  }
+
+  const haystack = [
+    flight.flight_number,
+    flight.equipment,
+    flight.departure,
+    flight.arrival,
+    flight.eobt,
+    flight.speed,
+    flight.flight_level,
+    flight.route,
+    flight.eet,
+    flight.remarks
+  ]
+    .map(normalizeSearch)
+    .filter(Boolean)
+    .join(" ")
+
+  return haystack.includes(term)
+}
+
+function flightMatchesSpecificFilters(flight, filters) {
+  const origin = normalizeSearch(filters.origin)
+  const destination = normalizeSearch(filters.destination)
+  const equipment = normalizeSearch(filters.equipment)
+
+  const flightOrigin = normalizeSearch(flight.departure)
+  const flightDestination = normalizeSearch(flight.arrival)
+  const flightEquipment = normalizeSearch(flight.equipment)
+
+  if (origin && !flightOrigin.includes(origin)) {
+    return false
+  }
+
+  if (destination && !flightDestination.includes(destination)) {
+    return false
+  }
+
+  if (equipment && !flightEquipment.includes(equipment)) {
+    return false
+  }
+
+  return true
+}
+
 export default function App() {
   const fileInputRef = useRef(null)
 
@@ -68,6 +122,9 @@ export default function App() {
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
+  const [originSearch, setOriginSearch] = useState("")
+  const [destinationSearch, setDestinationSearch] = useState("")
+  const [equipmentSearch, setEquipmentSearch] = useState("")
   const [limit, setLimit] = useState(50000)
 
   async function loadStatus() {
@@ -159,33 +216,26 @@ export default function App() {
     }
   }
 
+  function clearFilters() {
+    setSearch("")
+    setOriginSearch("")
+    setDestinationSearch("")
+    setEquipmentSearch("")
+  }
+
   const filteredFlights = useMemo(() => {
-    const term = search.trim().toUpperCase()
-
-    if (!term) {
-      return flights
-    }
-
     return flights.filter((flight) => {
-      const haystack = [
-        flight.flight_number,
-        flight.equipment,
-        flight.departure,
-        flight.arrival,
-        flight.eobt,
-        flight.speed,
-        flight.flight_level,
-        flight.route,
-        flight.eet,
-        flight.remarks
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toUpperCase()
+      if (!flightMatchesGeneralSearch(flight, search)) {
+        return false
+      }
 
-      return haystack.includes(term)
+      return flightMatchesSpecificFilters(flight, {
+        origin: originSearch,
+        destination: destinationSearch,
+        equipment: equipmentSearch
+      })
     })
-  }, [flights, search])
+  }, [flights, search, originSearch, destinationSearch, equipmentSearch])
 
   useEffect(() => {
     refreshAll()
@@ -277,9 +327,30 @@ export default function App() {
           <div className="filters">
             <input
               type="text"
-              placeholder="Buscar voo, origem, destino, rota..."
+              placeholder="Busca geral: voo, rota, horário, nível..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+            />
+
+            <input
+              type="text"
+              placeholder="Origem"
+              value={originSearch}
+              onChange={(event) => setOriginSearch(event.target.value)}
+            />
+
+            <input
+              type="text"
+              placeholder="Destino"
+              value={destinationSearch}
+              onChange={(event) => setDestinationSearch(event.target.value)}
+            />
+
+            <input
+              type="text"
+              placeholder="Equipamento"
+              value={equipmentSearch}
+              onChange={(event) => setEquipmentSearch(event.target.value)}
             />
 
             <select
@@ -294,6 +365,10 @@ export default function App() {
 
             <button type="button" onClick={loadFlights}>
               Buscar
+            </button>
+
+            <button className="secondary-button" type="button" onClick={clearFilters}>
+              Limpar
             </button>
           </div>
         </div>

@@ -81,11 +81,14 @@ select {
 button {
   border: 0;
   border-radius: 10px;
-  padding: 11px 16px;
+  padding: 9px 13px;
   background: #2563eb;
   color: #ffffff;
   cursor: pointer;
   font-weight: 700;
+  font-size: 13px;
+  height: 34px;
+  white-space: nowrap;
 }
 
 button:disabled {
@@ -171,19 +174,36 @@ button:disabled {
 
 .filters {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 850px;
 }
 
 .filters input,
 .filters select {
+  height: 34px;
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 9px;
+  padding: 6px 8px;
   background: #ffffff;
+  font-size: 13px;
 }
 
 .filters input {
-  width: 320px;
+  width: 110px;
+  min-width: 110px;
+}
+
+.filters input:first-child {
+  width: 230px;
+  min-width: 230px;
+}
+
+.filters select {
+  width: 88px;
+  min-width: 88px;
 }
 
 .table-wrapper {
@@ -268,8 +288,16 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 
-  .filters input {
+  .filters {
+    max-width: 100%;
+  }
+
+  .filters input,
+  .filters input:first-child,
+  .filters select,
+  .filters button {
     width: 100%;
+    min-width: 100%;
   }
 
   .status-list {
