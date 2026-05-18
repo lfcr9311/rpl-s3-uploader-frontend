@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8010"
+const TOKEN_KEY = "rpl_uploader_token"
 
 function formatDate(value) {
   if (!value) return "-"
@@ -113,6 +114,10 @@ function flightMatchesSpecificFilters(flight, filters) {
 export default function App() {
   const fileInputRef = useRef(null)
 
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "")
+  const [password, setPassword] = useState("")
+  const [authLoading, setAuthLoading] = useState(false)
+
   const [file, setFile] = useState(null)
   const [status, setStatus] = useState(null)
   const [flights, setFlights] = useState([])
@@ -127,12 +132,85 @@ export default function App() {
   const [equipmentSearch, setEquipmentSearch] = useState("")
   const [limit, setLimit] = useState(50000)
 
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY)
+    setToken("")
+    setPassword("")
+    setStatus(null)
+    setFlights([])
+    setFile(null)
+    setMessage("")
+    setError("")
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  async function apiFetch(path, options = {}) {
+    const headers = {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`
+    }
+
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers
+    })
+
+    if (response.status === 401) {
+      logout()
+      throw new Error("Sessão expirada. Entre novamente.")
+    }
+
+    return response
+  }
+
+  async function handleLogin(event) {
+    event.preventDefault()
+
+    if (!password.trim()) {
+      setError("Digite a senha")
+      return
+    }
+
+    setAuthLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          password
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Erro ao entrar")
+      }
+
+      localStorage.setItem(TOKEN_KEY, data.token)
+      setToken(data.token)
+      setPassword("")
+    } catch (err) {
+      setError(err.message || "Erro ao entrar")
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
   async function loadStatus() {
     setLoadingStatus(true)
     setError("")
 
     try {
-      const response = await fetch(`${API_URL}/api/status`)
+      const response = await apiFetch("/api/status")
       const data = await response.json()
 
       if (!response.ok || !data.ok) {
@@ -152,7 +230,7 @@ export default function App() {
     setError("")
 
     try {
-      const response = await fetch(`${API_URL}/api/flights?limit=${limit}`)
+      const response = await apiFetch(`/api/flights?limit=${limit}`)
       const data = await response.json()
 
       if (!response.ok || !data.ok) {
@@ -187,7 +265,7 @@ export default function App() {
     setMessage("")
 
     try {
-      const response = await fetch(`${API_URL}/api/upload`, {
+      const response = await apiFetch("/api/upload", {
         method: "POST",
         body: formData
       })
@@ -238,8 +316,43 @@ export default function App() {
   }, [flights, search, originSearch, destinationSearch, equipmentSearch])
 
   useEffect(() => {
-    refreshAll()
-  }, [])
+    if (token) {
+      refreshAll()
+    }
+  }, [token])
+
+  if (!token) {
+    return (
+      <main className="page">
+        <section className="header">
+          <div>
+            <h1>Importador RPL</h1>
+            <p>Acesso protegido por senha</p>
+          </div>
+        </section>
+
+        {error ? <div className="alert error">{error}</div> : null}
+
+        <section className="card login-card">
+          <h2>Entrar</h2>
+
+          <form onSubmit={handleLogin} className="upload-form">
+            <input
+              type="password"
+              placeholder="Senha"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoFocus
+            />
+
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? "Entrando..." : "Entrar"}
+            </button>
+          </form>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <main className="page">
@@ -249,9 +362,15 @@ export default function App() {
           <p>Upload de CSV direto para o Postgres</p>
         </div>
 
-        <button className="secondary-button" type="button" onClick={refreshAll}>
-          Atualizar
-        </button>
+        <div className="header-actions">
+          <button className="secondary-button" type="button" onClick={refreshAll}>
+            Atualizar
+          </button>
+
+          <button className="secondary-button" type="button" onClick={logout}>
+            Sair
+          </button>
+        </div>
       </section>
 
       {error ? <div className="alert error">{error}</div> : null}
@@ -273,10 +392,6 @@ export default function App() {
               {uploading ? "Importando..." : "Importar CSV"}
             </button>
           </form>
-
-          <div className="hint">
-            Ao importar, o backend apaga os dados atuais e grava o novo CSV no banco.
-          </div>
         </div>
 
         <div className="card">
