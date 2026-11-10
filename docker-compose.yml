@@ -1,0 +1,15 @@
+# Frontend do RPL em /rpl/. A porta 80 do EC2 e do Caddy do ~/fortran, que repassa
+# /rpl* para rpl-frontend:80 pela rede dele (fortran_default). O Caddy deste
+# container serve a tela e repassa /rpl/api/* para rpl-backend:8010.
+services:
+  rpl-frontend:
+    build: .
+    image: rpl-frontend
+    restart: unless-stopped
+    networks: [fortran]
+
+networks:
+  # criada pelo docker compose do ~/fortran (precisa estar no ar antes)
+  fortran:
+    name: fortran_default
+    external: true

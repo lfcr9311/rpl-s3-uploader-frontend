@@ -1,0 +1,22 @@
+# Caddy de dentro do container rpl-frontend (porta 80 so na rede do Docker).
+# O Caddy da porta 80 do EC2 (~/fortran) manda /rpl* para ca, sem tirar o prefixo.
+:80 {
+	# /rpl/api/... -> backend em /api/...
+	handle /rpl/api/* {
+		uri strip_prefix /rpl
+		reverse_proxy rpl-backend:8010
+	}
+
+	# tela (build do Vite em /srv)
+	handle /rpl/* {
+		uri strip_prefix /rpl
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	# /rpl sem a barra e qualquer outro caminho
+	handle {
+		redir * /rpl/
+	}
+}
